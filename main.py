@@ -1,27 +1,36 @@
-#import openai
-import sounddevice as sd
+import openai
+import whisper
 import numpy as np
-import scipy.io.wavfile as wav
+import os
+
+import audio_manager
 
 # Set your OpenAI API key
-# openai.api_key = 'your-api-key'
+openai.api_key = os.environ.get('OPEN_API_KEY')
 
-# Record audio from the user
-fs = 44100  # Sample rate
-seconds = 3  # Duration of recording
+audio_manager.get_audio_save_to_file("output.wav")
 
-print("Start speaking now!")
-myrecording = sd.rec(int(seconds * fs), samplerate=fs, channels=2)
-sd.wait()  # Wait until recording is finished
+audio_file = open("output.wav", "rb")
+transcript = openai.Audio.transcribe("whisper-1", audio_file)
 
-# Save as WAV file
-wav.write('output.wav', fs, myrecording)  
+rehersal_text = transcript["text"]
+with open('myfile.txt', 'w') as f:
+    f.write(rehersal_text)
 
-# Use the Whisper ASR API to convert the audio to text
-with open("output.wav", "rb") as f:
-    data = f.read()
-#response = openai.Whisper.asr(data)
+slides = rehersal_text.lower().split("next slide")
+slides = [slide.strip() for slide in slides]
+print(slides)
 
-# Print the transcribed text
+prompt = """the following is a powerpoint transcription. your job is to ask question and add comments corresponding to slides when clarification is warranted in the hope that you will help the presenter avoid misunderstandings. what is provided is only the dialog not the slides themselves. 
+focus on possible unclear phrasings or wording
+tagert audience: business \n The transcription of the presentation is here: """ + rehersal_text
 
-#print(response['choices'][0]['text'])
+response = openai.ChatCompletion.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "system", "content": "You are an expert at analyzing presentations and speeches."},
+        {"role": "user", "content": prompt},
+    ]
+)
+
+print(response['choices'][0]['message']['content'])
